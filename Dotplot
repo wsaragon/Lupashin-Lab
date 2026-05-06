@@ -1,0 +1,39 @@
+library(ggplot2)
+data<-read.csv(file.choose()) 
+
+data$Protein <- factor(data$Protein, levels = rev(unique(data$Protein)))  
+data$Group <- factor(data$Group, levels = unique(data$Group)) 
+
+p <- ggplot(data, aes(x = Group, y = Protein)) +
+    geom_point(
+        aes(size = Avg_Abundance, fill = Fold_Enrichment),
+        shape = 21,
+        color = "black",  
+        stroke = 0.5 
+    ) +
+    scale_fill_gradient2(
+        low = "darkblue",
+        mid = "white",
+        high = "darkred",
+        midpoint = 1,
+        name = "Fold Enrichment",
+        guide = guide_colorbar(barwidth = 1, barheight = 10)
+   ) +
+   scale_size_continuous(
+     name = "Average Abundance",
+     range = c(2, 10)
+   ) +
+   theme_minimal(base_size = 14) +
+   labs(
+     title = "Dot Plot of Protein Enrichment and Abundance",
+     x = "Experimental Groups",
+     y = "Proteins"
+   ) +
+   theme(
+     plot.title = element_text(hjust = 0.5, face = "bold", size = 16),
+     axis.title = element_text(face = "bold"),
+     axis.text = element_text(color = "black"),
+     legend.title = element_text(face = "bold")
+   )
+
+ print(p)
