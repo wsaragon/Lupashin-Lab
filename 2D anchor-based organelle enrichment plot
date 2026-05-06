@@ -1,0 +1,93 @@
+library(tidyverse)
+library(ggrepel)
+
+setwd("")
+
+marker_table <- read_csv("intracellular_markers_ext.csv")
+
+marker_long <- marker_table %>%
+  pivot_longer(cols = everything(), names_to = "compartment", values_to = "protein") %>%
+  filter(!is.na(protein)) %>%
+  mutate(protein = str_trim(toupper(protein)))
+
+protein_data <- read_csv("dataset.csv") %>%
+  mutate(protein = str_trim(toupper(protein)))
+
+matched <- inner_join(marker_long, protein_data, by = "protein")
+
+anchors <- matched %>%
+  group_by(compartment) %>%
+  slice_max(order_by = fold_change, n = 1, with_ties = FALSE) %>%
+  rename(marker_name = protein, marker_fc = fold_change) %>%
+  ungroup()
+
+coordinates <- tibble(
+    compartment = c("Endoplasmic reticulum", "Golgi", "Endolysosomal system"),
+    x = c(2, 3, 4),
+    y = c(2, 3, 4)
+)
+
+anchors <- anchors %>%
+  left_join(coordinates, by = "compartment")
+
+assigned_matched <- matched %>%
+  filter(!protein %in% anchors$marker_name) %>%
+  left_join(anchors, by = "compartment") %>%
+  mutate(distance = abs(fold_change - marker_fc),
+         x = x, y = y)
+
+unmatched <- anti_join(protein_data, matched, by = "protein")
+
+other_anchor <- tibble(
+  compartment = "Other",
+  marker_name = "OtherAnchor",
+  marker_fc = mean(unmatched$fold_change, na.rm = TRUE),
+  x = 4,
+  y = 2
+)
+
+assigned_other <- unmatched %>%
+  mutate(temp_id = row_number()) %>%
+  crossing(other_anchor) %>%
+  mutate(distance = abs(fold_change - marker_fc)) %>%
+  select(-temp_id)
+
+assigned_all <- bind_rows(assigned_matched, assigned_other)
+
+plot_anchors <- bind_rows(anchors, other_anchor)
+
+min_fc <- min(assigned_all$fold_change, na.rm = TRUE)
+max_fc <- max(assigned_all$fold_change, na.rm = TRUE)
+
+bubble_data <- assigned_all %>%
+  group_by(compartment) %>%
+  summarise(count = n()) %>%
+  left_join(plot_anchors, by = "compartment")
+
+compartment_colors <- RColorBrewer::brewer.pal(length(unique(bubble_data$compartment)), "Set2")
+names(compartment_colors) <- unique(bubble_data$compartment)
+
+ggplot() +
+  geom_point(data = filter(bubble_data, compartment != "Other"),
+             aes(x = x, y = y, size = count, fill = compartment),
+             shape = 21, alpha = 0.25, color = "black", stroke = 0.5) +
+
+  scale_size_continuous(range = c(10, 30)) +  # adjust bubble size scale
+  scale_fill_manual(values = compartment_colors) +
+
+  geom_jitter(data = filter(assigned_all, compartment != "Other"),
+              aes(x = x, y = y, color = fold_change),
+              width = 0.3, height = 0.3, size = 3, alpha = 0.8) +
+
+  geom_point(data = filter(plot_anchors, compartment != "Other"),
+             aes(x = x, y = y), color = "red", size = 5, shape = 21, fill = "white") +
+
+  scale_color_gradient(low = "lightblue", high = "red", limits = c(min_fc, max_fc)) +
+  theme_minimal() +
+  labs(
+    title = "Protein Clustering by Fold Change (Matched Compartments Only)",
+    x = "X Coordinate", y = "Y Coordinate",
+    color = "Fold Change"
+  )
+
+print(p)
