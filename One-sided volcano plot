@@ -1,0 +1,30 @@
+library(ggplot2)
+library(readr)   
+library(readxl)   
+library(dplyr)
+library(ggrepel)  
+
+data<-read.csv(file.choose())
+
+colnames(data) <- c("Protein", "log2FC", "padj")
+
+up_data <- data %>%
+  filter(padj < 0.05 & log2FC > 1)
+
+proteins_of_interest <- c("ProteinA", "ProteinB", "ProteinC")
+
+up_data$label <- ifelse(up_data$Protein %in% proteins_of_interest,
+                        up_data$Protein, NA)
+
+ggplot(up_data, aes(x = log2FC, y = -log10(padj))) +
+  geom_point(color = "blue", alpha = 0.7) +
+  geom_text_repel(aes(label = label), fontface = "bold", max.overlaps = 10, size = 5) +
+  theme_minimal() +
+  labs(title = "One-sided Volcano Plot (Upregulated Only)",
+       x = "log2 Fold Change",
+       y = "-log10 Adjusted p-value") +
+  geom_vline(xintercept = 1, linetype = "dashed") +
+  geom_hline(yintercept = -log10(0.05), linetype = "dashed") +
+  xlim(1, max(up_data$log2FC, na.rm = TRUE) + 1)
+
+print(p)
